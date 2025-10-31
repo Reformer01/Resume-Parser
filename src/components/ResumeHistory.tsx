@@ -51,6 +51,16 @@ export function ResumeHistory({
 
   useEffect(() => {
     loadResumes();
+    // Load hidden history from localStorage
+    try {
+      const raw = localStorage.getItem('resume_hidden_ids');
+      if (raw) {
+        const ids: string[] = JSON.parse(raw);
+        setHiddenResumes(new Set(ids));
+      }
+    } catch (e) {
+      console.warn('Failed to load hidden resume ids from storage');
+    }
   }, [refreshTrigger]);
 
   const loadResumes = async () => {
@@ -148,12 +158,19 @@ export function ResumeHistory({
     setIsDeleting(true);
 
     try {
+      // Clear only the Recent Uploads history by hiding all current items locally
       setIsDialogOpen(false);
-
-      await DatabaseService.deleteAllResumes();
-
-      await loadResumes();
-      onResumeDeleted?.();
+      const allIds = resumes.map(r => r.id);
+      const newHidden = new Set<string>([...hiddenResumes, ...allIds]);
+      setHiddenResumes(newHidden);
+      setShowAllResumes(false);
+      setShowHidden(false);
+      // Persist hidden list so history stays cleared on refresh
+      try {
+        localStorage.setItem('resume_hidden_ids', JSON.stringify(Array.from(newHidden)));
+      } catch (e) {
+        console.warn('Failed to persist hidden resume ids');
+      }
     } catch (error) {
       console.error('Fatal error during batch delete:', error);
       alert('An error occurred while deleting resumes. Please try again.');
@@ -163,13 +180,23 @@ export function ResumeHistory({
   };
 
   const hideResume = (id: string) => {
-    setHiddenResumes(prev => new Set(prev).add(id));
+    setHiddenResumes(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem('resume_hidden_ids', JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
   };
 
   const unhideResume = (id: string) => {
     setHiddenResumes(prev => {
       const newSet = new Set(prev);
       newSet.delete(id);
+      try {
+        localStorage.setItem('resume_hidden_ids', JSON.stringify(Array.from(newSet)));
+      } catch {}
       return newSet;
     });
   };
@@ -270,9 +297,9 @@ export function ResumeHistory({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete All Resumes</AlertDialogTitle>
+                    <AlertDialogTitle>Clear Recent Uploads</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete all {resumes.length} resumes? This action cannot be undone and will permanently remove all resume data.
+                      This will clear the Recent Uploads list from this device. Your resumes and parsed data will not be deleted.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -291,7 +318,7 @@ export function ResumeHistory({
                       data-variant="destructive"
                       disabled={isDeleting}
                     >
-                      {isDeleting ? 'Deleting...' : 'Delete All'}
+                      {isDeleting ? 'Clearing...' : 'Clear All'}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
