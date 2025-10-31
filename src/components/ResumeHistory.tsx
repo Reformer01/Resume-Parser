@@ -144,39 +144,15 @@ export function ResumeHistory({
 
   const deleteAllResumes = async () => {
     if (isDeleting) return;
-    
-    setIsDeleting(true);
-    
-    try {
-      // Copy current resume IDs
-      const resumeIds = resumes.map(r => r.id);
 
-      // Optimistically clear UI and close dialog
-      setResumes([]);
-      setFilteredResumes([]);
+    setIsDeleting(true);
+
+    try {
       setIsDialogOpen(false);
 
-      if (resumeIds.length > 0) {
-        // Try bulk delete first for reliability and speed
-        const { error: bulkError } = await supabase
-          .from('resumes')
-          .delete()
-          .in('id', resumeIds);
+      await DatabaseService.deleteAllResumes();
 
-        if (bulkError) {
-          console.warn('Bulk delete failed, falling back to per-item deletion:', bulkError);
-          for (const id of resumeIds) {
-            try {
-              await DatabaseService.deleteResume(id);
-            } catch (err) {
-              console.error(`Failed to delete resume ${id}:`, err);
-              // continue
-            }
-          }
-        }
-      }
-
-      // Notify parent
+      await loadResumes();
       onResumeDeleted?.();
     } catch (error) {
       console.error('Fatal error during batch delete:', error);
@@ -275,19 +251,19 @@ export function ResumeHistory({
                   <Button 
                     variant="destructive" 
                     size="sm" 
-                    className="w-full sm:w-auto mt-2 sm:mt-0 text-black hover:text-black active:text-black"
+                    className="w-full sm:w-auto mt-2 sm:mt-0"
                     data-variant="destructive"
                     disabled={isDeleting}
                   >
                     {isDeleting ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin text-black" />
-                        <span className="text-black">Deleting...</span>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <span>Deleting...</span>
                       </>
                     ) : (
                       <>
-                        <Trash2 className="w-4 h-4 mr-2 text-black" />
-                        <span className="whitespace-nowrap text-black">Clear All</span>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        <span className="whitespace-nowrap">Clear All</span>
                       </>
                     )}
                   </Button>
@@ -302,7 +278,6 @@ export function ResumeHistory({
                   <AlertDialogFooter>
                     <AlertDialogCancel 
                       disabled={isDeleting}
-                      className="text-black hover:text-black active:text-black"
                       data-variant="cancel"
                     >
                       {isDeleting ? 'Working...' : 'Cancel'}
@@ -312,7 +287,7 @@ export function ResumeHistory({
                         e.preventDefault();
                         await deleteAllResumes();
                       }}
-                      className="bg-red-600 hover:bg-red-700 focus:ring-red-500 text-black hover:text-black active:text-black"
+                      className="bg-red-600 hover:bg-red-700 focus:ring-red-500 text-white"
                       data-variant="destructive"
                       disabled={isDeleting}
                     >

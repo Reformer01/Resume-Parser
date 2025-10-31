@@ -206,4 +206,48 @@ export class DatabaseService {
       throw error;
     }
   }
+
+  static async deleteAllResumes() {
+    try {
+      const { data: resumeRows, error: loadError } = await (supabase as any)
+        .from('resumes')
+        .select('id');
+
+      if (loadError) throw loadError;
+      const resumeIds = (resumeRows || []).map((row: { id: string }) => row.id);
+
+      if (resumeIds.length === 0) {
+        return { deleted: 0 };
+      }
+
+      const relatedTables: Array<{ table: string; column: string }> = [
+        { table: 'certifications', column: 'resume_id' },
+        { table: 'education', column: 'resume_id' },
+        { table: 'work_experience', column: 'resume_id' },
+        { table: 'skills', column: 'resume_id' },
+        { table: 'parsed_data', column: 'resume_id' },
+      ];
+
+      for (const { table, column } of relatedTables) {
+        const { error } = await (supabase as any)
+          .from(table)
+          .delete()
+          .in(column, resumeIds);
+
+        if (error) throw error;
+      }
+
+      const { error: resumeError } = await (supabase as any)
+        .from('resumes')
+        .delete()
+        .in('id', resumeIds);
+
+      if (resumeError) throw resumeError;
+
+      return { deleted: resumeIds.length };
+    } catch (error) {
+      console.error('Error clearing resumes:', error);
+      throw error;
+    }
+  }
 }
